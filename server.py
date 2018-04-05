@@ -3,11 +3,11 @@ import httplib
 import json
 import wiringpi
 
-device_name = "pee"
+device_name = "raspi1"
 
-keynames = ["Lights","Camera","Slider"]
-types = ["SWITCH","SWITCH","SLIDER"]
-servopins = [0,1,2]
+keynames = ["Fan","FanIntensity", "Aircon","Temp", "Lights"]
+types = ["SWITCH","SLIDER","SWITCH","SLIDER","SWITCH"]
+servopins = [0,1,2,3]
 
 onoffconstants = ["Off","On"]
 
