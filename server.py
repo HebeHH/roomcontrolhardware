@@ -6,7 +6,7 @@ import wiringpi
 device_name = "raspi1"
 
 keynames = ["Fan","FanIntensity", "Aircon","Temp", "Lights"]
-types = ["SWITCH","SLIDER","SWITCH","SLIDER","SWITCH"]
+types = ["FANOFF","FANVALUE","AIRCON","TEMP","LIGHT"]
 servopins = [0,1,2,3]
 
 onoffconstants = ["Off","On"]
@@ -33,7 +33,7 @@ def step():
         full_key = device_name+"_"+keynames[i]
         if full_key in data:
             print full_key
-            if types[i] == "SWITCH":
+            if types[i] == "LIGHT":
                 if data[full_key]['value']==onoffconstants[0]:
                     print "\tUp"
                     servo.up(servopins[i])
