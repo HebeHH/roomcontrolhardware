@@ -1,45 +1,71 @@
 import servo
 import httplib
 import json
+import time
 import wiringpi
 
-device_name = "raspi1"
+device_name = "hebe"
 
-keynames = ["Fan","FanIntensity", "Aircon","Temp", "Lights"]
-types = ["FANOFF","FANVALUE","AIRCON","TEMP","LIGHT"]
-servopins = [0,1,2,3]
+keynames = ["Lights","Aircon", "Temp", "FanIntensity", "Fan"]
+actions = [servo.set_lights, servo.set_aircon,servo.set_temp, servo.set_wind, servo.set_fan]
+servopins = [0,1,2]
 
 onoffconstants = ["Off","On"]
 
-def get_server_data():
+
+def get_server_data(server_path):
     server = "192.241.140.108"
     port = "5000"
     headers = {'Content-type': 'application/json'}
-    server_path = "/get"
 
     connection = httplib.HTTPConnection(server, port=port)
     connection.request('GET', server_path, headers=headers)
 
     response = connection.getresponse().read()
-
     d = json.loads(response.decode())
 
-    return d['data']
+    return d
+
+def update_event(title):
+    get_server_data("/setevent/"+device_name+"?title="+title)
+
+def get_time():
+    return get_server_data("/currtime")
+
+def get_device_data():
+    return get_server_data("/get/"+device_name)
+
+def delete_gadget(gadget):
+    get_server_data("/delgadget/"+device_name+"?gadget="+gadget)
+
 
 def step():
-    data = get_server_data()
+    server_time = get_time()
+    print "New Round!"
+    data = get_device_data()
 
-    for i in range(len(keynames)):
-        full_key = device_name+"_"+keynames[i]
-        if full_key in data:
-            print full_key
-            if types[i] == "LIGHT":
-                if data[full_key]['value']==onoffconstants[0]:
-                    print "\tUp"
-                    servo.up(servopins[i])
-                elif data[full_key]['value']==onoffconstants[1]:
-                    print "\tDown"
-                    servo.down(servopins[i])
+    print "got data!"
+
+    for event in data['events']:
+        if data['events'][event]['time'] < server_time:
+            update_event(event)
+            print event + " updated!"
+    print "passed events"
+
+    # This is a very dirty and resource-draining way to get around an issue, 
+    # but otherwise the above loops shorts the entire thing out if there aren't
+    # any events in the queue. There's definitely a better way (like actually
+    # checking my inputs), but this is quickest. By a long shot.
+    get_server_data("/event/"+device_name+"?title=Stop&time=10000000")
+
+    curr_data = get_device_data()['current']
+
+    for i in range(len(keynames)):  
+        if keynames[i] in curr_data:
+            print keynames[i]
+            actions[i](curr_data[keynames[i]]['value'])
+            delete_gadget(keynames[i])
+
 
 def poll(interval):
     while True:
@@ -50,4 +76,6 @@ def poll(interval):
             pass
         wiringpi.delay(interval)
 
+get_server_data("/event/"+device_name+"?title=Stop&time=10000000")
+servo.bottom_out_temp()
 poll(10)

@@ -1,96 +1,133 @@
-import wiringpi
-import json
-import urllib2
+import RPi.GPIO as GPIO
 import time
 
-wiringpi.wiringPiSetupGpio()
-wiringpi.pinMode(2, 1)
-wiringpi.softPwmCreate(2,0,100)
+# server GPIOs: fan = 3, lights = 18, 7 
 
-start_time = time.time()
+fan = False
+aircon = False
+temp = 0
 
-pins = [2,3,4,17,27,22,11,10,9]
+fan_pin = 3
+light_on_pin = 7
+light_off_pin = 18
 
-def down(pin):
-	wiringpi.softPwmWrite(pins[pin], 24)
+def reset_all():
+	GPIO.cleanup()
+	GPIO.setmode(GPIO.BOARD)
+	return None
 
-def clear():
-	for i in xrange(0, 9): control(i, 0)
+def setup_servo(pin_num):
+	GPIO.setup(pin_num, GPIO.OUT)
+	p1 = GPIO.PWM(pin_num, 50)
+	return p1
 
-def up(pin):
-	wiringpi.softPwmWrite(pins[pin], 19)
+def move_servo(pin_num, pos):
+	GPIO.setmode(GPIO.BOARD)
+	p1 = setup_servo(pin_num)
+	p1.start(pos)
+	time.sleep(0.5)
+	p1.stop()
+	GPIO.cleanup()
+	return None
 
-def init():
-	for pin in pins:
-		wiringpi.pinMode(pin, 1)
-		wiringpi.softPwmCreate(pin,0,100)
-
-init()
-
-def pulse(pin, interval):
-	# print "Pulsing... start_time = %f" % start_time
-
-	if interval == 0:
-		# print "Resetting..."
-		control(pin, 0)
-
-	elif (int((time.time() - start_time)/interval) % 2):
-		down(pin)
+# input = {0, 1, 2, 3, 4, 5} where 0 = off
+def set_wind(val):
+	val = int(val)
+	pos = [2.5, 4.5, 6.5, 8.5, 10.5, 12.5]
+	global fan
+	if fan == True:
+		move_servo(fan_pin, pos[val])
+		print "adjusted"
 	else:
-		up(pin)
+		print "please turn on to adjust"
+	return None
 
-def control(pin, val):
-	wiringpi.softPwmWrite(pins[pin], val)
+# input = {On, Off}
+def set_fan(val):
+	global fan
+	if val == "On":
+		fan = True
+		move_servo(fan_pin, 9)
+		print "turned on"
+	else:
+		fan = False
+		move_servo(fan_pin, 2.3)
+		print "turned off"
+	return None
 
-def reset():
-	for i in xrange(0,3):
-		up(i)
-	wiringpi.delay(700)
-	for i in xrange(3,6):
-		up(i)
-	wiringpi.delay(700)
-	for i in xrange(6,9):
-		up(i)
+# input = {On, Off}
+def set_lights(val):
+	if val == "On":
+		move_servo(light_on_pin, 3)
+		print "turned on"
+	else:
+		move_servo(light_off_pin, 12)
+		print "turned off"
+	time.sleep(1)
+	move_servo(light_on_pin, 8)
+	move_servo(light_off_pin, 8)
+	return None
 
-def redown():
-        for i in xrange(0,3):
-                down(i)
-        wiringpi.delay(700)
-        for i in xrange(3,6):
-                down(i)
-        wiringpi.delay(700)
-        for i in xrange(6,9):
-                down(i)
+# input = {On, Off}
+def set_aircon(val):
+	global aircon
+	if val == "On":
+		print "turned on"
+		val = True
+	else:
+		print "turned off"
+		val = False
 
-def testdown():
-        for i in xrange(0,9):
-                down(i)
-		wiringpi.delay(300)
+	if val != aircon:
+		print "changed"
+		# TO DO: 
+		# (requires hardware config)
+		# press power button
+		# wait a sec
+	
+	aircon = val
+	return None
 
-def testup():
-        for i in xrange(0,9):
-                up(i)
-                wiringpi.delay(300)
+# input = integer 1-16ish
+def set_temp(val):
+	val = int(val)
+	global temp
+	change = val-temp
+	if change == 0:
+		"no change"
+	elif change < 0:
+		for i in range(-change):
+			print "decreasing.."
+			# TO DO:
+			# push down button
+			# hold
+			# release
+			# pause
+		print "decreased"
+	else:
+		for i in range(change):
+			print "increasing..."
+			# TO DO:
+			# push up button
+			# hold
+			# release
+			# pause
+		print "increased"
 
+	temp = val
+	return None
 
-def all_move(val):
-	for pin in pins:
-		wiringpi.softPwmWrite(pin, val)
+# needed to make sure of starting position for temp
+def bottom_out_temp():
+	for i in range(20):
+		print "decreasing"
+		# TO DO:
+		# push down button
+		# hold
+		# release
+		# pause
+	print "temp decreased as much as possible"
+	global temp
+	temp = 0
+	return None
 
-def move(val):
-	wiringpi.softPwmWrite(2,val)
-
-def run(rangelow, rangehigh, inc):
-	for i in xrange(rangelow, rangehigh, inc):
-		wiringpi.softPwmWrite(2, i)
-		wiringpi.delay(100)
-
-def run_pattern(multiplier=1, pattern=None):
-	print "Getting pattern..."
-	if pattern==None:
-		pattern = json.loads(json.loads(urllib2.urlopen('http://dweet.io/get/latest/dweet/for/feelybot').read())['with'][0]['content']['pattern'])
-	print "Got Pattern. running..."
-	for p in pattern:
-		wiringpi.delay(int(p['time']*multiplier))
-		print "Cell %d at %d millis." % (p['cell'],p['time'])
-		down(p['cell'])
